@@ -1,0 +1,17 @@
+# Data Management and Analysis
+pandas
+numpy
+
+# Graph Analysis 
+networkx
+
+# Web Scraping
+selenium
+webdriver-manager
+
+# Data Visualization and Plotting
+matplotlib
+seaborn
+
+# Development Environment
+notebook
