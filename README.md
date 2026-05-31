@@ -91,6 +91,14 @@ python -m venv .venv
 .venv\Scripts\activate.bat
 ```
 
+**On Windows (Powershell):**
+```bash
+python -m venv .venv
+.venv\Scripts\activate.ps1
+```
+
+*Note: to exit the venv from the terminal type the command: deactivate*
+
 ### 2. Dependency Ingestion
 
 Install the full suite of computational, network analysis, and browser automation packages via `pip`:
@@ -101,8 +109,6 @@ pip install -r requirements.txt
 ```
 
 *Note: The system utilizes `webdriver-manager` within `src/scraper.py` to automatically provision, configure, and match the correct binary version of Chromedriver to your local Google Chrome installation, removing manual configuration steps.*
-
-Ecco la sola sezione **Data Configuration** aggiornata con la presenza di tutti e 5 i file, pronta in un unico blocco di codice:
 
 ## Data Configuration
 
