@@ -1,6 +1,7 @@
 # Data Management and Analysis
 pandas
 numpy
+pyarrow
 
 # Graph Analysis 
 networkx
