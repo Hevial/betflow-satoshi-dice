@@ -197,3 +197,87 @@ def plot_behavioral_profiling(behavioral_dict: dict):
         
     plt.tight_layout()
     plt.show()
+
+def plot_chain_length_distribution(chains_df: pd.DataFrame, target_name: str):
+    """
+    Plots the distribution of session lengths (bet chains) for a specific target address.
+    Uses a scatter plot with log scale on Y to highlight the frequency of different chain lengths.
+    Annotates key statistics and highlights the median and average chain lengths.
+    """
+    
+
+    sns.set_style("whitegrid")
+
+    sessions = chains_df[chains_df['length'] > 1].copy()
+
+    if sessions.empty:
+        print(f"No multi-transaction sessions found for {target_name}.")
+        return
+
+    # Frequency distribution
+    freq = sessions['length'].value_counts().sort_index()
+
+    fig, ax = plt.subplots(figsize=(14, 7))
+
+    # SCATTER PLOT 
+    ax.scatter(
+        freq.index,
+        freq.values,
+        s=25,
+        color='teal',
+        alpha=0.8
+    )
+
+    # Log scale only on Y 
+    ax.set_yscale('log')
+    ax.yaxis.set_major_formatter(ticker.ScalarFormatter())
+
+    # Stats
+    avg_len = sessions['length'].mean()
+    med_len = sessions['length'].median()
+
+    top_5 = sessions['length'].nlargest(5).tolist()
+
+    stats_text = (
+        f"--- GLOBAL STATS ---\n"
+        f"Total Sessions: {len(sessions):,}\n"
+        f"Average Length: {avg_len:.2f}\n"
+        f"Median Length: {med_len:.0f}\n\n"
+        f"--- LONGEST CHAINS ---\n"
+        f"1. {top_5[0]} bets\n"
+        f"2. {top_5[1]} bets\n"
+        f"3. {top_5[2]} bets\n"
+        f"4. {top_5[3]} bets\n"
+        f"5. {top_5[4]} bets"
+    )
+
+    props = dict(
+        boxstyle='round,pad=0.8',
+        facecolor='ghostwhite',
+        alpha=0.9,
+        edgecolor='teal'
+    )
+
+    ax.text(
+        0.98, 0.86,
+        stats_text,
+        transform=ax.transAxes,
+        fontsize=11,
+        fontfamily='monospace',
+        verticalalignment='top',
+        horizontalalignment='right',
+        bbox=props
+    )
+
+    # Reference lines
+    ax.axvline(med_len, color='crimson', linestyle='--', label=f'Median: {med_len:.0f}')
+    ax.axvline(avg_len, color='navy', linestyle='--', label=f'Average: {avg_len:.2f}')
+
+    ax.set_title(f"Session Length Distribution for {target_name}", fontsize=16, fontweight='bold')
+    ax.set_xlabel("Session Length (Number of Bets)")
+    ax.set_ylabel("Number of Sessions (log scale)")
+
+    ax.legend(loc='upper right')
+
+    plt.tight_layout()
+    plt.show()

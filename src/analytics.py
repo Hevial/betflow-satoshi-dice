@@ -1,3 +1,4 @@
+import networkx as nx
 import pandas as pd
 
 def isolate_bet_transactions(tx: pd.DataFrame, outputs: pd.DataFrame, mapping: pd.DataFrame, satoshi_dice: pd.DataFrame) -> pd.DataFrame:
@@ -137,3 +138,103 @@ def compute_payout_latency(tx_annotated: pd.DataFrame, inputs: pd.DataFrame) -> 
     payouts['time_distance'] = payouts['payout_timestamp'] - payouts['bet_timestamp']
     
     return payouts[['bet_txId', 'payout_txId', 'block_distance', 'time_distance']]
+
+def reconstruct_bet_chains(
+    inputs: pd.DataFrame,
+    outputs: pd.DataFrame,
+    mapping: pd.DataFrame,
+    satoshi_dice: pd.DataFrame,
+    target_name: str = None,
+) -> tuple[pd.DataFrame, str]:
+    """
+    Reconstructs bet chains (sessions) for a target SatoshiDice address using graph analysis.
+    Returns a tuple: (chains_df, identified_target_name)
+    """
+    # 1. Identify Target Address
+    if target_name is None:
+        popularity = compute_address_popularity(outputs, mapping, satoshi_dice)
+        if popularity.empty:
+            raise ValueError("No target address found.")
+        target_name = popularity.iloc[0]["Name"]
+
+    try:
+        target_hash = satoshi_dice.loc[
+            satoshi_dice["Name"] == target_name, "Address"
+        ].iloc[0]
+        target_addr_id = mapping.loc[
+            mapping["hash"] == target_hash, "addressId"
+        ].iloc[0]
+    except IndexError:
+        raise ValueError(
+            f"Target name '{target_name}' not found in mapping tables."
+        )
+
+    # 2. Filter for 'Simple Bets' using native Pandas Index operations (Fast)
+    tx_with_1_input = inputs["txId"].value_counts()
+    tx_with_1_input = tx_with_1_input[tx_with_1_input == 1].index
+
+    tx_with_2_outputs = outputs["txId"].value_counts()
+    tx_with_2_outputs = tx_with_2_outputs[tx_with_2_outputs == 2].index
+
+    # Intersection directly in C-speed via Pandas
+    simple_candidates = tx_with_1_input.intersection(tx_with_2_outputs)
+
+    # Filter outputs using a fast boolean mask
+    simple_outputs = outputs[outputs["txId"].isin(simple_candidates)]
+
+    # Locate transactions touching the target address
+    has_target = simple_outputs.loc[
+        simple_outputs["addressId"] == target_addr_id, "txId"
+    ].unique()
+    simple_bets_ids = set(has_target)
+
+    # 3. Identify Change Outputs
+    simple_bets_outputs = simple_outputs[
+        simple_outputs["txId"].isin(simple_bets_ids)
+    ]
+    change_outputs = simple_bets_outputs.loc[
+        simple_bets_outputs["addressId"] != target_addr_id,
+        ["txId", "position", "addressId"],
+    ].rename(columns={"txId": "prevTxId", "position": "prevTxpos"})
+
+    # 4. Optimized Graph Construction
+    # Pre-filter inputs to reduce merge overhead significantly
+    relevant_inputs = inputs[inputs["txId"].isin(simple_bets_ids)][
+        ["txId", "prevTxId", "prevTxpos"]
+    ]
+
+    edges_df = pd.merge(
+        relevant_inputs, change_outputs, on=["prevTxId", "prevTxpos"]
+    )
+
+    # Attach actual address hashes to edges for de-anonymization (Step 6)
+    edges_df = pd.merge(edges_df, mapping, on="addressId", how="left")
+
+    # Create graph directly from edgelist (Much faster)
+    G = nx.from_pandas_edgelist(
+        edges_df,
+        source="prevTxId",
+        target="txId",
+        edge_attr=["hash"],
+        create_using=nx.DiGraph,
+    )
+    # Add isolated bets that didn't generate edges
+    G.add_nodes_from(simple_bets_ids)
+
+    # 5. Extract Chains
+    chains = []
+    for comp in nx.weakly_connected_components(G):
+        subgraph = G.subgraph(comp)
+        # Extract unique connecting addresses (labels) from edges
+        connecting_addresses = set(
+            nx.get_edge_attributes(subgraph, "hash").values()
+        )
+        
+        chains.append({
+            "nodes": list(comp),
+            "length": len(comp),
+            "edges_count": subgraph.number_of_edges(),
+            "connecting_addresses": list(connecting_addresses)
+        })
+
+    return pd.DataFrame(chains), target_name
