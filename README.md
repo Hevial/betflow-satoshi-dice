@@ -51,11 +51,10 @@ betflow-satoshi-dice/
 │   └── processed/                      # Intermediary datasets, filtered graphs, and scraped tables
 │
 ├── src/                                # Source code directory containing modular Python scripts
-│   ├── __init__.py                     # Package initialization file
 │   ├── data_loader.py                  # Ingestion of ledger CSVs with memory optimizations
-│   ├── graph_analysis.py               # Simple-bet filtering, graph construction, and path isolation
+│   ├── analytics.py                    # Statistical analysis functions
 │   ├── scraper.py                      # Headless Selenium engine for WalletExplorer data extraction
-│   └── plotting.py                     # Functions for generating analytical charts and distributions
+│   └── visualizations.py               # Functions for generating analytical charts and distributions
 │
 ├── notebook/                           # Dynamic execution environment and final deliverables
 │   ├── BetFlow_SatoshiDice.ipynb       # Documented Jupyter Notebook executing the end-to-end pipeline
