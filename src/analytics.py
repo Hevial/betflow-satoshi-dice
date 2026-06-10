@@ -238,3 +238,73 @@ def reconstruct_bet_chains(
         })
 
     return pd.DataFrame(chains), target_name
+
+def analyze_chain_wallets(chains_df: pd.DataFrame, mapping_file: str = '../data/wallet_mapping.csv', force_refresh: bool = False) -> pd.DataFrame:
+    """
+    Analyzes the wallets associated with the addresses in the provided chains.
+    Computes all required metrics for Section 6 of the project:
+    - Unique chain identifier
+    - Chain length
+    - Total number of involved addresses
+    - Number of distinct wallets identified
+    - Percentage of addresses linked to the predominant wallet
+    - Predominant wallet identifier
+    - Traceability Conclusion (Single vs Multiple Wallets)
+    """
+    from src.scraper import build_wallet_mapping
+
+    # 1. Extract all unique addresses present in these chains
+    all_addresses = set()
+    for addrs in chains_df['connecting_addresses']:
+        all_addresses.update(addrs)
+
+    # 2. Call the scraper to get the mapping (with caching)
+    wallet_dict = build_wallet_mapping(list(all_addresses), mapping_file=mapping_file, force_refresh=force_refresh)
+
+    # 3. Calculate KPIs for each individual chain
+    results = []
+
+    for idx, row in chains_df.iterrows():
+        addrs = row['connecting_addresses']
+
+        # Filter the valid addresses we found
+        wallets = [wallet_dict.get(a) for a in addrs if wallet_dict.get(a) not in [None, "Unknown"]]
+
+        total_addresses = len(addrs)
+        # Use the original DataFrame index for unique identification
+        chain_id = f"Chain_{idx}"
+
+        if not wallets:
+            results.append({
+                "Chain_ID": chain_id,
+                "Length": row['length'],
+                "Total_Addresses": total_addresses,
+                "Distinct_Wallets": 0,
+                "Predominant_Wallet": "Unknown",
+                "Predominant_Percentage": 0.0,
+                "Traceability_Conclusion": "Inconclusive (No Wallets Found)"
+            })
+            continue
+
+        wallet_counts = pd.Series(wallets).value_counts()
+        distinct_wallets = len(wallet_counts)
+        predominant_wallet = wallet_counts.index[0]
+        predominant_count = wallet_counts.iloc[0]
+
+        # Percentage calculation based on total connecting addresses
+        predominant_percentage = (predominant_count / total_addresses) * 100
+
+        # Determine qualitative conclusion as per requirements
+        conclusion = "Single Entity (Traceable)" if (distinct_wallets == 1 and predominant_percentage >= 99.0) else "Multiple Entities (Fragmented)"
+
+        results.append({
+            "Chain_ID": chain_id,
+            "Length": row['length'],
+            "Total_Addresses": total_addresses,
+            "Distinct_Wallets": distinct_wallets,
+            "Predominant_Wallet": predominant_wallet,
+            "Predominant_Percentage": round(predominant_percentage, 2),
+            "Traceability_Conclusion": conclusion
+        })
+
+    return pd.DataFrame(results)

@@ -188,12 +188,15 @@ def plot_behavioral_profiling(behavioral_dict: dict):
 
         # Column 3: Inter-bet Intervals
         clean_deltas = data[data['time_delta'] < 3600]['time_delta'] / 60 # minutes
+        median_delta = clean_deltas.median()
         sns.histplot(clean_deltas, bins=50, ax=axes[i, 2], color='teal')
         axes[i, 2].set_title(f'{name}: Inter-bet Intervals - Log Scale', fontweight='bold')
         axes[i, 2].set_xlabel('Minutes between consecutive bets')
         axes[i, 2].set_yscale("log")
         axes[i, 2].yaxis.set_major_formatter(ticker.ScalarFormatter())
         axes[i, 2].yaxis.set_major_locator(ticker.LogLocator(base=10.0, subs=[1,2,5], numticks=10))
+        axes[i, 2].axvline(median_delta, color='crimson', linestyle='--', label=f'Median: {median_delta:.1f} min')
+        axes[i, 2].legend()
         
     plt.tight_layout()
     plt.show()
